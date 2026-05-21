@@ -1,0 +1,24 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
+  "python.terminal.activateEnvironment": true,
+  "dbcode.connections": [
+    {
+      "connectionId": "vB2z0vIM98rd14n74cMG9",
+      "name": "ChromaDB",
+      "driver": "sqlite",
+      "color": "#0085CC",
+      "connectionType": "socket",
+      "socket": "RAG-System/vectorstore/chroma.sqlite3",
+      "readOnly": false,
+      "role": "development",
+      "postConnectionSqlType": "inline",
+      "driverOptions": {
+        "extensions": []
+      },
+      "idleTimeout": 0,
+      "introspection": {
+        "progressive": false
+      }
+    }
+  ]
+}
