@@ -1,17 +1,15 @@
 """
 agent.py
 --------
-The heart of the Agentic RAG system.
+Agentic RAG core. Supports two LLM providers:
+  - "ollama"  → ChatOllama (local, no API key)
+  - "groq"    → ChatGroq   (cloud, requires GROQ_API_KEY)
 
-This is what makes it "agentic" vs a simple RAG:
-  - A simple RAG ALWAYS searches the vector DB, no matter what
-  - An agent DECIDES whether to search or answer directly
-
-The agent uses tool-calling: the LLM (llama3.2) decides on its own
-whether to call the search tool or answer directly, based on the question.
+The agent decides whether to call search_cybersecurity_docs or answer directly.
 """
 
 from langchain_ollama import ChatOllama
+from langchain_groq import ChatGroq
 from langchain.agents import create_agent
 from langchain_core.tools import tool
 from src.vectorstore import load_vectorstore
@@ -26,10 +24,7 @@ SYSTEM_PROMPT = (
 )
 
 
-# ── Tool definition ────────────────────────────────────────────────────────────
-
 def build_search_tool(vectorstore):
-    """Creates the search tool that queries ChromaDB."""
     retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
 
     @tool
@@ -43,46 +38,40 @@ def build_search_tool(vectorstore):
         docs = retriever.invoke(query)
         if not docs:
             return "No relevant documents found for this query."
-
         results = []
         for doc in docs:
             title = doc.metadata.get("title", "Unknown")
             results.append(f"[Source: {title}]\n{doc.page_content}")
-
         return "\n\n---\n\n".join(results)
 
     return search_cybersecurity_docs
 
 
-# ── Agent builder ──────────────────────────────────────────────────────────────
-
-def build_agent():
+def build_agent(model: str = "llama3.2", provider: str = "ollama", groq_api_key: str | None = None):
     """
-    Builds and returns the LangChain tool-calling agent (LangChain 1.x).
-    Call this once at startup and reuse the returned agent.
+    Builds the tool-calling agent.
+    provider: "ollama" or "groq"
+    groq_api_key: required when provider="groq" (falls back to GROQ_API_KEY env var if None)
     """
     print("Loading vector store...")
     vectorstore = load_vectorstore()
 
-    print("Loading Ollama (llama3.2)...")
-    llm = ChatOllama(model="llama3.2", temperature=0)
+    print(f"Loading {provider} / {model}...")
+    if provider == "groq":
+        kwargs = {"model": model, "temperature": 0}
+        if groq_api_key:
+            kwargs["api_key"] = groq_api_key
+        llm = ChatGroq(**kwargs)
+    else:
+        llm = ChatOllama(model=model, temperature=0)
 
     tools = [build_search_tool(vectorstore)]
-
-    agent = create_agent(
-        model=llm,
-        tools=tools,
-        system_prompt=SYSTEM_PROMPT,
-    )
-
+    agent = create_agent(model=llm, tools=tools, system_prompt=SYSTEM_PROMPT)
     print("Agent ready.")
     return agent
 
 
 def run_agent(agent, user_input: str) -> str:
-    """
-    Invoke the agent with a single user message and return the final text reply.
-    """
     result = agent.invoke({"messages": [{"role": "user", "content": user_input}]})
     messages = result.get("messages", [])
     if not messages:
